@@ -1,5 +1,6 @@
 package su.nightexpress.excellentcrates.key;
 
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -35,6 +36,7 @@ public class KeyManager extends AbstractManager<CratesPlugin> {
     private final DialogRegistry dialogs;
 
     private final Map<String, CrateKey> keyByIdMap;
+    private WrappedTask saveTask;
 
     public KeyManager(@NotNull CratesPlugin plugin, @NotNull DialogRegistry dialogs) {
         super(plugin);
@@ -47,14 +49,17 @@ public class KeyManager extends AbstractManager<CratesPlugin> {
         this.loadCost();
         this.loadKeys();
         this.loadDialogs();
-        this.plugin.runTask(task -> this.reportProblems()); // When everything is loaded.
+        this.plugin.getFoliaLib().getScheduler().runNextTick(task -> this.reportProblems()); // When everything is loaded.
 
         this.addListener(new KeyListener(this.plugin, this));
-        this.addAsyncTask(this::saveKeys, Config.CRATE_SAVE_INTERVAL.get()); // TODO Config
+        this.saveTask = this.plugin.getFoliaLib().getScheduler().runTimerAsync(() -> this.saveKeys(), Config.CRATE_SAVE_INTERVAL.get(), Config.CRATE_SAVE_INTERVAL.get()); // TODO Config
     }
 
     @Override
     protected void onShutdown() {
+        if (this.saveTask != null) {
+            this.saveTask.cancel();
+        }
         this.saveKeys();
         this.keyByIdMap.clear();
     }

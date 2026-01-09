@@ -1,5 +1,6 @@
 package su.nightexpress.excellentcrates.data;
 
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -24,6 +25,9 @@ public class DataManager extends AbstractManager<CratesPlugin> {
     private final Map<String, GlobalCrateData> crateDataMap;
     private final Map<RewardKey, RewardData>   rewardLimitMap;
 
+    private WrappedTask saveCrateDataTask;
+    private WrappedTask saveRewardLimitsTask;
+
     private boolean dataLoaded;
 
     public DataManager(@NotNull CratesPlugin plugin) {
@@ -34,14 +38,17 @@ public class DataManager extends AbstractManager<CratesPlugin> {
 
     @Override
     protected void onLoad() {
-        this.plugin.runTaskAsync(task -> this.loadData());
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.loadData());
 
-        this.addAsyncTask(this::saveCrateDatas, Config.DATA_CRATE_DATA_SAVE_INTERVAL.get());
-        this.addAsyncTask(this::saveRewardLimits, Config.DATA_REWARD_LIMITS_SAVE_INTERVAL.get());
+        this.saveCrateDataTask = this.plugin.getFoliaLib().getScheduler().runTimerAsync(() -> this.saveCrateDatas(), Config.DATA_CRATE_DATA_SAVE_INTERVAL.get(), Config.DATA_CRATE_DATA_SAVE_INTERVAL.get());
+        this.saveRewardLimitsTask = this.plugin.getFoliaLib().getScheduler().runTimerAsync(() -> this.saveRewardLimits(), Config.DATA_REWARD_LIMITS_SAVE_INTERVAL.get(), Config.DATA_REWARD_LIMITS_SAVE_INTERVAL.get());
     }
 
     @Override
     protected void onShutdown() {
+        if (this.saveCrateDataTask != null) this.saveCrateDataTask.cancel();
+        if (this.saveRewardLimitsTask != null) this.saveRewardLimitsTask.cancel();
+        
         this.saveData();
         this.crateDataMap.clear();
         this.rewardLimitMap.clear();
@@ -150,13 +157,13 @@ public class DataManager extends AbstractManager<CratesPlugin> {
         if (data != null) return data;
 
         GlobalCrateData fresh = GlobalCrateData.create(crate);
-        this.plugin.runTaskAsync(task -> this.plugin.getDataHandler().insertCrateData(fresh));
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.plugin.getDataHandler().insertCrateData(fresh));
         this.crateDataMap.put(fresh.getCrateId(), fresh);
         return fresh;
     }
 
     public void deleteCrateData(@NotNull Crate crate) {
-        this.plugin.runTaskAsync(task -> this.plugin.getDataHandler().deleteCrateData(crate));
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.plugin.getDataHandler().deleteCrateData(crate));
         this.crateDataMap.remove(crate.getId());
     }
 
@@ -168,7 +175,7 @@ public class DataManager extends AbstractManager<CratesPlugin> {
         if (limit != null) return limit;
 
         RewardData fresh = RewardData.create(reward, player);
-        this.plugin.runTaskAsync(task -> this.plugin.getDataHandler().insertRewardLimit(fresh));
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.plugin.getDataHandler().insertRewardLimit(fresh));
         this.addRewardLimit(fresh);
         return fresh;
     }
@@ -190,14 +197,14 @@ public class DataManager extends AbstractManager<CratesPlugin> {
     }
 
     public void deleteRewardLimit(@NotNull RewardData limit) {
-        this.plugin.runTaskAsync(task -> this.plugin.getDataHandler().deleteRewardLimit(limit));
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.plugin.getDataHandler().deleteRewardLimit(limit));
         this.rewardLimitMap.remove(getRewardKey(limit));
     }
 
     public void deleteRewardLimits(@NotNull Crate crate) {
         String crateId = crate.getId();
 
-        this.plugin.runTaskAsync(task -> this.plugin.getDataHandler().deleteRewardLimits(crate));
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.plugin.getDataHandler().deleteRewardLimits(crate));
         this.rewardLimitMap.keySet().removeIf(key -> key.crateId().equalsIgnoreCase(crateId));
     }
 
@@ -205,14 +212,14 @@ public class DataManager extends AbstractManager<CratesPlugin> {
         String crateId = reward.getCrate().getId();
         String rewardId = reward.getId();
 
-        this.plugin.runTaskAsync(task -> this.plugin.getDataHandler().deleteRewardLimits(reward));
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.plugin.getDataHandler().deleteRewardLimits(reward));
         this.rewardLimitMap.keySet().removeIf(key -> key.crateId().equalsIgnoreCase(crateId) && key.rewardId().equalsIgnoreCase(rewardId));
     }
 
     public void deleteRewardLimits(@NotNull UUID playerId) {
         String holder = playerId.toString();
 
-        this.plugin.runTaskAsync(task -> this.plugin.getDataHandler().deleteRewardLimits(playerId));
+        this.plugin.getFoliaLib().getScheduler().runAsync(task -> this.plugin.getDataHandler().deleteRewardLimits(playerId));
         this.rewardLimitMap.keySet().removeIf(key -> key.holder().equalsIgnoreCase(holder));
     }
 

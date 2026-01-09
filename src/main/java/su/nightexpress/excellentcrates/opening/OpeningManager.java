@@ -1,5 +1,6 @@
 package su.nightexpress.excellentcrates.opening;
 
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,6 +26,7 @@ public class OpeningManager extends AbstractManager<CratesPlugin> {
 
     private final Map<String, OpeningProvider> providerByIdMap;
     private final Map<UUID, Opening>           openingByPlayerMap;
+    private WrappedTask tickTask;
 
     private final DummyProvider dummyProvider;
 
@@ -41,8 +43,6 @@ public class OpeningManager extends AbstractManager<CratesPlugin> {
         this.loadProviders();
 
         this.addListener(new OpeningListener(this.plugin, this));
-
-        this.addTask(this::tickOpenings, 1L);
     }
 
     @Override
@@ -152,7 +152,7 @@ public class OpeningManager extends AbstractManager<CratesPlugin> {
     }
 
     public void tickOpenings() {
-        this.getOpenings().forEach(Opening::tick);
+        //this.getOpenings().forEach(Opening::tick);
     }
 
     public boolean isOpening(@NotNull Player player) {

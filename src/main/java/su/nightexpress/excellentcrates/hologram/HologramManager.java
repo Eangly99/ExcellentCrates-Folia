@@ -1,5 +1,6 @@
 package su.nightexpress.excellentcrates.hologram;
 
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -28,6 +29,7 @@ import java.util.*;
 public class HologramManager extends AbstractManager<CratesPlugin> {
 
     private final Map<String, FakeDisplay> displayMap;
+    private WrappedTask hologramTask;
 
     private HologramHandler handler;
 
@@ -41,12 +43,14 @@ public class HologramManager extends AbstractManager<CratesPlugin> {
         if (this.detectHandler()) {
             this.addListener(new HologramListener(this.plugin, this));
 
-            this.addAsyncTask(this::tickHolograms, Config.CRATE_HOLOGRAM_UPDATE_INTERVAL.get());
+            this.hologramTask = this.plugin.getFoliaLib().getScheduler().runTimerAsync(() -> this.tickHolograms(), Config.CRATE_HOLOGRAM_UPDATE_INTERVAL.get(), Config.CRATE_HOLOGRAM_UPDATE_INTERVAL.get());
         }
     }
 
     @Override
     protected void onShutdown() {
+        if (this.hologramTask != null) this.hologramTask.cancel();
+        
         this.displayMap.values().forEach(this::discard);
         this.displayMap.clear();
 
@@ -160,40 +164,45 @@ public class HologramManager extends AbstractManager<CratesPlugin> {
             if (group.isDisabled()) continue;
 
             WorldPos blockPosition = group.getBlockPosition();
-            World world = blockPosition.getWorld();
             Location location = blockPosition.toLocation();
+            if (location == null) continue;
 
-            if (!blockPosition.isChunkLoaded() || world == null || location == null) {
-                this.discard(group); // Remove all viewers and send entity destroy packet.
-                continue;
-            }
+            this.plugin.getFoliaLib().getScheduler().runAtLocation(location, (task) -> {
+                if (group.isDisabled()) return;
 
-            List<Player> players = new ArrayList<>(world.getPlayers());
-            players.removeIf(player -> {
-                if (CrateUtils.isInEffectRange(player, location)) return false;
-
-                this.removeForViewer(player, group);
-                return true;
-            });
-
-            if (players.isEmpty()) {
-                this.discard(group); // Remove all viewers and send entity destroy packet.
-                continue;
-            }
-
-            players.forEach(player -> {
-                boolean needSpawn = !group.isViewer(player);
-
-                List<String> hologramText = Replacer.create().replacePlaceholderAPI(player).apply(text);
-                List<FakeEntity> holograms = group.getEntities();
-                for (int index = 0; index < holograms.size(); index++) {
-                    // Fix for fake entity's text not being updated/replaced when text size is less than holograms amount, so force it to empty string.
-                    String line = index >= hologramText.size() ? "" : hologramText.get(index);
-                    FakeEntity entity = holograms.get(index);
-                    this.handler.sendHologramPackets(player, entity, needSpawn, line);
+                World world = blockPosition.getWorld();
+                if (!blockPosition.isChunkLoaded() || world == null) {
+                    this.discard(group); // Remove all viewers and send entity destroy packet.
+                    return;
                 }
 
-                group.addViewer(player);
+                List<Player> players = new ArrayList<>(world.getPlayers());
+                players.removeIf(player -> {
+                    if (CrateUtils.isInEffectRange(player, location)) return false;
+
+                    this.removeForViewer(player, group);
+                    return true;
+                });
+
+                if (players.isEmpty()) {
+                    this.discard(group); // Remove all viewers and send entity destroy packet.
+                    return;
+                }
+
+                players.forEach(player -> {
+                    boolean needSpawn = !group.isViewer(player);
+
+                    List<String> hologramText = Replacer.create().replacePlaceholderAPI(player).apply(text);
+                    List<FakeEntity> holograms = group.getEntities();
+                    for (int index = 0; index < holograms.size(); index++) {
+                        // Fix for fake entity's text not being updated/replaced when text size is less than holograms amount, so force it to empty string.
+                        String line = index >= hologramText.size() ? "" : hologramText.get(index);
+                        FakeEntity entity = holograms.get(index);
+                        this.handler.sendHologramPackets(player, entity, needSpawn, line);
+                    }
+
+                    group.addViewer(player);
+                });
             });
         }
     }
@@ -206,28 +215,32 @@ public class HologramManager extends AbstractManager<CratesPlugin> {
         if (originText.isEmpty()) return;
 
         FakeDisplay display = new FakeDisplay();
+        this.displayMap.put(crate.getId(), display);
 
         double yOffset = crate.getHologramYOffset() + 0.2;
         double lineGap = Config.CRATE_HOLOGRAM_LINE_GAP.get();
 
         crate.getBlockPositions().forEach(blockPos -> {
-            Block block = blockPos.toBlock();
-            if (block == null) return;
+            Location loc = blockPos.toLocation();
+            if (loc == null) return;
+            
+            this.plugin.getFoliaLib().getScheduler().runAtLocation(loc, (task) -> {
+                Block block = blockPos.toBlock();
+                if (block == null) return;
 
-            double height = block.getBoundingBox().getHeight() / 2D + yOffset;
+                double height = block.getBoundingBox().getHeight() / 2D + yOffset;
 
-            // Allocate ID values for our fake entities, so there is no clash with new server entities.
+                // Allocate ID values for our fake entities, so there is no clash with new server entities.
 
-            FakeEntityGroup group = display.getGroupOrCreate(blockPos);
+                FakeEntityGroup group = display.getGroupOrCreate(blockPos);
 
-            for (int index = 0; index < originText.size(); index++) {
-                double gap = lineGap * index;
+                for (int index = 0; index < originText.size(); index++) {
+                    double gap = lineGap * index;
 
-                Location location = LocationUtil.setCenter3D(block.getLocation()).add(0, height + gap, 0);
-                group.addEntity(FakeEntity.create(location));
-            }
+                    Location location = LocationUtil.setCenter3D(block.getLocation()).add(0, height + gap, 0);
+                    group.addEntity(FakeEntity.create(location));
+                }
+            });
         });
-
-        this.displayMap.put(crate.getId(), display);
     }
 }

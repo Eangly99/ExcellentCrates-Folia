@@ -1,5 +1,6 @@
 package su.nightexpress.excellentcrates.crate;
 
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.World;
@@ -71,6 +72,9 @@ public class CrateManager extends AbstractManager<CratesPlugin> {
     private final Map<WorldPos, Crate>     crateByPosMap;
     private final Map<String, PreviewMenu> previewByIdMap;
     private final Map<UUID, Long>          previewCooldown;
+    
+    private WrappedTask effectsTask;
+    private WrappedTask saveTask;
 
     private OpeningCostMenu   costMenu;
     private OpeningAmountMenu amountMenu;
@@ -96,16 +100,19 @@ public class CrateManager extends AbstractManager<CratesPlugin> {
         this.loadCrates();
         this.loadUI();
         this.loadDialogs();
-        this.plugin.runTask(task -> this.reportProblems()); // After everything is loaded.
+        this.plugin.getFoliaLib().getScheduler().runNextTick(task -> this.reportProblems()); // After everything is loaded.
 
         this.addListener(new CrateListener(this.plugin, this));
 
-        this.addAsyncTask(this::playCrateEffects, 1L);
-        this.addAsyncTask(this::saveCrates, Config.CRATE_SAVE_INTERVAL.get());
+        this.effectsTask = this.plugin.getFoliaLib().getScheduler().runTimerAsync(() -> this.playCrateEffects(), 1L, 1L);
+        this.saveTask = this.plugin.getFoliaLib().getScheduler().runTimerAsync(() -> this.saveCrates(), Config.CRATE_SAVE_INTERVAL.get(), Config.CRATE_SAVE_INTERVAL.get());
     }
 
     @Override
     protected void onShutdown() {
+        if (this.effectsTask != null) this.effectsTask.cancel();
+        if (this.saveTask != null) this.saveTask.cancel();
+
         this.saveCrates();
 
         if (this.milestonesMenu != null) this.milestonesMenu.clear();

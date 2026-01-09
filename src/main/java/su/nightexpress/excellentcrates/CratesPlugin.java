@@ -1,5 +1,8 @@
 package su.nightexpress.excellentcrates;
 
+import com.tcoded.folialib.FoliaLib;
+import com.tcoded.folialib.wrapper.task.WrappedTask;
+import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 import su.nightexpress.excellentcrates.api.addon.CratesAddon;
 import su.nightexpress.excellentcrates.command.BaseCommands;
@@ -34,6 +37,7 @@ public class CratesPlugin extends NightPlugin {
 
     private final List<CratesAddon> addons = new ArrayList<>();
 
+    private FoliaLib foliaLib;
     private DialogRegistry dialogRegistry;
 
     private DataHandler dataHandler;
@@ -74,6 +78,7 @@ public class CratesPlugin extends NightPlugin {
 
     @Override
     public void enable() {
+        this.foliaLib = new FoliaLib(this);
         this.crateLogger = new CrateLogger(this);
         this.dialogRegistry = new DialogRegistry(this);
 
@@ -175,6 +180,11 @@ public class CratesPlugin extends NightPlugin {
     }
 
     @NotNull
+    public FoliaLib getFoliaLib() {
+        return this.foliaLib;
+    }
+
+    @NotNull
     public CrateLogger getCrateLogger() {
         return this.crateLogger;
     }
@@ -212,5 +222,35 @@ public class CratesPlugin extends NightPlugin {
     @NotNull
     public CrateManager getCrateManager() {
         return this.crateManager;
+    }
+
+    @Override
+    public void runTask(@NotNull Consumer<BukkitTask> action) {
+        this.foliaLib.getScheduler().runNextTick((task) -> action.accept(null));
+    }
+
+    @Override
+    public void runTaskAsync(@NotNull Consumer<BukkitTask> action) {
+        this.foliaLib.getScheduler().runAsync((task) -> action.accept(null));
+    }
+
+    @Override
+    public void runTaskTimer(@NotNull Consumer<BukkitTask> action, long delay, long period) {
+        this.foliaLib.getScheduler().runTimer((task) -> action.accept(null), delay, period);
+    }
+
+    @Override
+    public void runTaskTimerAsync(@NotNull Consumer<BukkitTask> action, long delay, long period) {
+        this.foliaLib.getScheduler().runTimerAsync((task) -> action.accept(null), delay, period);
+    }
+
+    @Override
+    public void runTaskLater(@NotNull Consumer<BukkitTask> action, long delay) {
+        this.foliaLib.getScheduler().runLater((task) -> action.accept(null), delay);
+    }
+    
+    @Override
+    public void runTaskLaterAsync(@NotNull Consumer<BukkitTask> action, long delay) {
+         this.foliaLib.getScheduler().runLaterAsync((task) -> action.accept(null), delay);
     }
 }

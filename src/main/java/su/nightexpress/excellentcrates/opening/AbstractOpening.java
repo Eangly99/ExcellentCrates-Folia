@@ -1,5 +1,6 @@
 package su.nightexpress.excellentcrates.opening;
 
+import com.tcoded.folialib.wrapper.task.WrappedTask;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,6 +35,7 @@ public abstract class AbstractOpening implements Opening {
     protected long    tickCount;
     protected boolean running;
     protected boolean refundable;
+    private WrappedTask tickTask;
 
     public AbstractOpening(@NotNull CratesPlugin plugin, @NotNull Player player, @NotNull CrateSource source, @Nullable Cost cost) {
         this.plugin = plugin;
@@ -51,6 +53,13 @@ public abstract class AbstractOpening implements Opening {
 
         this.running = true;
         this.onStart();
+
+        if (this.tickTask != null) this.tickTask.cancel();
+        this.tickTask = this.plugin.getFoliaLib().getScheduler().runAtEntityTimer(
+            this.player,
+            () -> this.tick(),
+            1L, 1L
+        );
     }
 
     @Override
@@ -58,6 +67,10 @@ public abstract class AbstractOpening implements Opening {
         if (!this.running) return;
 
         this.running = false;
+        if (this.tickTask != null) {
+            this.tickTask.cancel();
+            this.tickTask = null;
+        }
         this.onStop();
     }
 
